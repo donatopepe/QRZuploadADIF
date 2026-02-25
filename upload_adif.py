@@ -6,9 +6,11 @@ from pathlib import Path
 from typing import Any, Dict
 
 import requests
+from eqsl_service import run_eqsl_for_adif
 
 CONFIG_FILE = Path(__file__).with_name("configuration.json")
 DEFAULT_LOG = Path(__file__).with_name("upload_adif.log")
+QRZ_CREDENTIALS_FILE = Path(__file__).with_name("qrz.com.txt")
 DEFAULT_CONFIG: Dict[str, Any] = {
     "login_url": "https://www.qrz.com/login",
     "adif_url": "https://logbook.qrz.com/adif",
@@ -23,6 +25,58 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "twofactor_code": "",
     "trust_device": False,
 }
+
+
+def _request_with_proxy_fallback(
+    session: requests.Session,
+    method: str,
+    url: str,
+    *,
+    logger: logging.Logger | None = None,
+    **kwargs: Any,
+):
+    """Retry once with session.trust_env=False when a broken proxy env causes ProxyError."""
+    try:
+        return session.request(method, url, **kwargs)
+    except requests.exceptions.ProxyError as exc:
+        if not getattr(session, "trust_env", True):
+            raise
+        if logger:
+            logger.warning(
+                "Proxy env error during %s %s; retrying with trust_env=False: %s",
+                method.upper(),
+                url,
+                exc,
+            )
+        session.trust_env = False
+        return session.request(method, url, **kwargs)
+
+
+def apply_qrz_credentials_file(cfg: Dict[str, Any]) -> None:
+    """Load QRZ username/password from qrz.com.txt if config values are missing.
+
+    File format:
+    - line 1: username
+    - line 2: password
+    """
+    need_username = not str(cfg.get("username") or "").strip()
+    need_password = not str(cfg.get("password") or "").strip()
+    if not (need_username or need_password):
+        return
+    if not QRZ_CREDENTIALS_FILE.exists():
+        return
+
+    lines = QRZ_CREDENTIALS_FILE.read_text(encoding="utf-8-sig").splitlines()
+    if len(lines) < 2:
+        raise ValueError("qrz.com.txt deve contenere username (riga 1) e password (riga 2).")
+
+    username = lines[0].strip()
+    password = lines[1].strip()
+
+    if need_username and username:
+        cfg["username"] = username
+    if need_password and password:
+        cfg["password"] = password
 
 
 def load_config() -> Dict[str, Any]:
@@ -49,6 +103,8 @@ def save_config(cfg: Dict[str, Any]) -> None:
 
 def ensure_config_fields(cfg: Dict[str, Any]) -> Dict[str, Any]:
     changed = False
+
+    apply_qrz_credentials_file(cfg)
 
     def prompt(field: str, msg: str) -> str:
         nonlocal changed
@@ -104,8 +160,11 @@ def _try_handshake(session: requests.Session, ticket: str, cfg: Dict[str, Any], 
         return
     try:
         logger.info("Attempting login handshake (step 1)")
-        step1 = session.post(
+        step1 = _request_with_proxy_fallback(
+            session,
+            "POST",
             "https://www.qrz.com/login-handshake",
+            logger=logger,
             data={"loginTicket": ticket, "username": cfg["username"], "step": 1},
             timeout=30,
         )
@@ -116,8 +175,11 @@ def _try_handshake(session: requests.Session, ticket: str, cfg: Dict[str, Any], 
 
     try:
         logger.info("Attempting login handshake (step 2)")
-        step2 = session.post(
+        step2 = _request_with_proxy_fallback(
+            session,
+            "POST",
             "https://www.qrz.com/login-handshake",
+            logger=logger,
             data={"loginTicket": ticket, "username": cfg["username"], "password": cfg["password"], "step": 2},
             timeout=30,
         )
@@ -135,7 +197,7 @@ def _try_handshake(session: requests.Session, ticket: str, cfg: Dict[str, Any], 
 def login(session: requests.Session, cfg: Dict[str, Any], logger: logging.Logger) -> None:
     login_url = cfg.get("login_url") or "https://www.qrz.com/login"
     logger.info("Fetching login page: %s", login_url)
-    resp = session.get(login_url, timeout=30)
+    resp = _request_with_proxy_fallback(session, "GET", login_url, logger=logger, timeout=30)
     resp.raise_for_status()
 
     login_ticket = _parse_login_ticket(resp.text)
@@ -150,13 +212,27 @@ def login(session: requests.Session, cfg: Dict[str, Any], logger: logging.Logger
         payload["trustdevice"] = "yes"
 
     logger.info("Submitting login form")
-    post = session.post(login_url, data=payload, timeout=30, headers={"Referer": login_url})
+    post = _request_with_proxy_fallback(
+        session,
+        "POST",
+        login_url,
+        logger=logger,
+        data=payload,
+        timeout=30,
+        headers={"Referer": login_url},
+    )
     post.raise_for_status()
 
     text = post.text.lower()
     if "logout" not in text and "log out" not in text:
         # Fallback: probe logbook page to confirm session.
-        probe = session.get("https://logbook.qrz.com/logbook", timeout=30)
+        probe = _request_with_proxy_fallback(
+            session,
+            "GET",
+            "https://logbook.qrz.com/logbook",
+            logger=logger,
+            timeout=30,
+        )
         probe.raise_for_status()
         ptext = probe.text.lower()
         if "logout" not in ptext and "log out" not in ptext:
@@ -185,7 +261,15 @@ def upload_adif(session: requests.Session, cfg: Dict[str, Any], logger: logging.
     logger.info("Uploading %s to %s (bid=%s, sbook=%s)", adif_path.name, adif_url, data["bid"], data["sbook"])
     with adif_path.open("rb") as fp:
         files = {"upload_file": (adif_path.name, fp, "application/octet-stream")}
-        resp = session.post(adif_url, data=data, files=files, timeout=120)
+        resp = _request_with_proxy_fallback(
+            session,
+            "POST",
+            adif_url,
+            logger=logger,
+            data=data,
+            files=files,
+            timeout=120,
+        )
     resp.raise_for_status()
 
     try:
@@ -213,6 +297,7 @@ def main():
     with requests.Session() as session:
         login(session, cfg, logger)
         upload_adif(session, cfg, logger)
+        run_eqsl_for_adif(session, cfg, logger)
 
 
 if __name__ == "__main__":

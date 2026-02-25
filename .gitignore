@@ -1,3 +1,19 @@
 *.json
+!*.example.json
+!*.example.txt
+__pycache__/
+tests/__pycache__/
+*.pyc
+.pytest_cache/
 Documenti/
 upload_adif.log
+password Gmail IU4VRV.txt
+password Gmail IU4VRV.example.txt
+gmail_app_password.txt
+qrz.com.txt
+eqsl_out/
+eqsl_assets_cache/
+gallery/live_test_variants/
+gallery/pieve_di_cento_commons/
+gallery/**/_write_test.tmp
+testsystemdrawing.jpg

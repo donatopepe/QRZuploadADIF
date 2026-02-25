@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "emails_by_callsign": {
+    "YOURCALL": {
+      "email": "yourcall@example.com",
+      "checked": true,
+      "checked_at_utc": "2026-02-25T00:00:00+00:00",
+      "source": "qrz_html"
+    }
+  }
+}
