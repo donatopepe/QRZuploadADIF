@@ -1,4 +1,5 @@
 *.json
+*.json.tmp
 !*.example.json
 !*.example.txt
 __pycache__/

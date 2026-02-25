@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import random
 import re
 import smtplib
@@ -296,7 +297,30 @@ def load_sent_store(path: Path) -> Dict[str, Any]:
 
 
 def save_json(path: Path, payload: Dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    """Write JSON with flush+fsync and atomic replace to reduce data loss on long runs."""
+    _ensure_parent(path)
+    data = json.dumps(payload, indent=2)
+    tmp_path = path.with_name(path.name + ".tmp")
+    try:
+        with tmp_path.open("w", encoding="utf-8", newline="\n") as fp:
+            fp.write(data)
+            fp.flush()
+            os.fsync(fp.fileno())
+        os.replace(tmp_path, path)
+        return
+    except PermissionError:
+        # Windows may deny atomic replace if another process has the target file open
+        # for reading (Explorer preview, AV scan, editor). Fallback to in-place flush.
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+
+    with path.open("w", encoding="utf-8", newline="\n") as fp:
+        fp.write(data)
+        fp.flush()
+        os.fsync(fp.fileno())
 
 
 def load_contacts_cache(path: Path) -> Dict[str, Any]:
@@ -865,6 +889,7 @@ def process_eqsl_records(
     lookup_email_fn: Callable[[Dict[str, str]], tuple[str, str]],
     render_postcard_fn: Callable[[Dict[str, str]], Path],
     send_email_fn: Callable[[str, Dict[str, str], Path], str],
+    persist_sent_store_fn: Optional[Callable[[Dict[str, Any]], None]] = None,
     sleep_fn: Callable[[float], None] = time.sleep,
     time_fn: Callable[[], float] = time.monotonic,
     random_fn: Callable[[], float] = random.random,
@@ -971,6 +996,8 @@ def process_eqsl_records(
                 _anti_block_wait_before_send()
                 message_id = send_email_fn(recipient_email, qso, postcard_path)
                 _mark_qso_sent(sent_store, key, qso, recipient_email, source, postcard_path, message_id)
+                if persist_sent_store_fn is not None:
+                    persist_sent_store_fn(sent_store)
                 summary["sent"] += 1
                 sent_timestamps.append(float(time_fn()))
                 _prune_send_timestamps(sent_timestamps[-1])
@@ -1063,6 +1090,7 @@ def run_eqsl_for_adif(session: requests.Session, cfg: Dict[str, Any], logger: lo
         lookup_email_fn=lookup_email_fn,
         render_postcard_fn=render_postcard_fn,
         send_email_fn=send_email_fn,
+        persist_sent_store_fn=lambda payload: save_json(sent_store_path, payload),
     )
 
     save_json(contacts_cache_path, contacts_cache)

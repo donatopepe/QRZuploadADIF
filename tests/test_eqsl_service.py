@@ -292,6 +292,37 @@ class EqslServiceTests(unittest.TestCase):
         self.assertTrue(all(recipient == "same-recipient@example.org" for recipient, _ in sent_calls))
         self.assertEqual(len(sent_store["sent_by_qso_key"]), 2)
 
+    def test_process_eqsl_records_persists_sent_store_after_each_send(self):
+        qsos = [
+            {"CALL": "K1ABC", "QSO_DATE": "20260225", "TIME_ON": "101500", "BAND": "20m", "MODE": "FT8"},
+            {"CALL": "K1ABC", "QSO_DATE": "20260225", "TIME_ON": "101600", "BAND": "20m", "MODE": "FT8"},
+        ]
+        settings = {"dry_run": False, "delay_sec_between_emails": 0, "max_emails_per_run": 0}
+        sent_store = {"schema_version": 1, "sent_by_qso_key": {}}
+        persisted_counts: list[int] = []
+
+        with tempfile.TemporaryDirectory() as td:
+            postcard = Path(td) / "p.jpg"
+            postcard.write_bytes(b"x")
+
+            def persist(payload):
+                persisted_counts.append(len(payload.get("sent_by_qso_key", {})))
+
+            summary = eqsl_service.process_eqsl_records(
+                qsos=qsos,
+                settings=settings,
+                sent_store=sent_store,
+                logger=_logger(),
+                lookup_email_fn=lambda q: ("same@example.org", "qrz_html"),
+                render_postcard_fn=lambda q: postcard,
+                send_email_fn=lambda recipient, qso, path: f"<{qso['TIME_ON']}@test>",
+                persist_sent_store_fn=persist,
+                sleep_fn=lambda _: None,
+            )
+
+        self.assertEqual(summary["sent"], 2)
+        self.assertEqual(persisted_counts, [1, 2])
+
     def test_process_eqsl_records_handles_missing_email_and_max_per_run(self):
         qsos = [
             {"CALL": "A1", "QSO_DATE": "20260225", "TIME_ON": "100000", "BAND": "20m", "MODE": "FT8"},
