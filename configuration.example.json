@@ -1,0 +1,14 @@
+{
+  "login_url": "https://www.qrz.com/login",
+  "adif_url": "https://logbook.qrz.com/adif",
+  "username": "",
+  "password": "",
+  "book_id": "",
+  "sbook": 0,
+  "adif_path": "C:\\\\BBLogger\\\\FilesAdif\\\\YOURCALL.adi",
+  "allow_duplicates": false,
+  "email_report": false,
+  "log_path": "upload_adif.log",
+  "twofactor_code": "",
+  "trust_device": false
+}

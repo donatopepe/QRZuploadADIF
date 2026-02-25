@@ -1,44 +1,58 @@
-# QRZ ADIF Uploader
+﻿# QRZ ADIF Upload + Email eQSL
 
-Script Python per caricare file ADIF su QRZ Logbook.
+Python utility for:
 
-## Requisiti
-- Python 3.x installato (Windows: scarica da https://www.python.org/downloads/ e seleziona “Add Python to PATH”).
-- Modulo `requests` installato:
-  - `pip install requests`
+- uploading ADIF files to QRZ Logbook
+- sending personalized email eQSL postcards (JPG attachment)
+- looking up recipient email from QRZ callsign pages when ADIF has no `EMAIL`
 
-## Configurazione (`configuration.json`)
-Il file viene creato automaticamente se manca. Compila i campi:
-- `login_url`: lascia `https://www.qrz.com/login`.
-*- `adif_url`: lascia `https://logbook.qrz.com/adif`.
-- `username`: il tuo username/callsign QRZ (es. `TUO_CALL`).
-- `password`: la tua password QRZ.
-- `book_id`: ID del logbook (es. `123456`). Puoi leggerlo da:
-  - testo “Book #<numero>” nella pagina del logbook,
-  - sorgente/rete di `https://logbook.qrz.com/logbook` cercando `bid`/`bookid`,
-  - input nascosto `id="bid"` nel modale “Import ADI File”.
-- `sbook`: `0` se usi un solo logbook.
-- `adif_path`: percorso completo al file ADIF (es. `C:\\Percorso\\file.adi`).
-- `allow_duplicates`: `false` (default) o `true` per accettare duplicati.
-- `email_report`: `false` (default) o `true` per richiedere report email.
-- `log_path`: file di log (default `upload_adif.log`).
-- `twofactor_code` (opzionale): codice 2FA se richiesto; lascia vuoto se non serve.
-- `trust_device` (opzionale): `false` (default) o `true` per “Trust this device for 30 days”.
+## Features
 
-## Uso
-1) Assicurati che Python sia nel PATH (`python --version`) e che `requests` sia installato (`pip install requests`).
-2) Compila `configuration.json` con i tuoi dati.
-3) Esegui:
-   - `run_upload_adif.bat` (Windows), oppure
-   - `python upload_adif.py`
-4) Controlla l’esito in console e nel log (`upload_adif.log`).
+- QRZ login (with optional 2FA field in config)
+- ADIF upload to selected QRZ logbook (`book_id`)
+- eQSL postcard generation (Pillow or System.Drawing fallback)
+- random image selection from a local gallery folder
+- Gmail SMTP send (App Password)
+- sent-state JSON to prevent duplicate eQSL for the same QSO
+- basic anti-block/rate-limit controls (delay, jitter, batch pause, hourly cap)
+- proxy-environment fallback (`trust_env=False`) for broken local proxy settings
 
-## File
-- `upload_adif.py`: script principale.
-- `run_upload_adif.bat`: avvio rapido su Windows.
-- `configuration.json`: credenziali e parametri (ignorato da git).
-- `upload_adif.log`: log esecuzione (ignorato da git).
+## Quick Start (Windows)
 
-## Note
-- Non committare credenziali: `configuration.json` e `upload_adif.log` sono già ignorati in `.gitignore`.
-- Se usi 2FA, inserisci `twofactor_code` prima di eseguire. Se non è richiesto, lascialo vuoto.
+1. Install Python 3.11+.
+2. Install dependencies: `python -m pip install requests Pillow`
+3. Copy templates and fill local secrets:
+   - `configuration.example.json` -> `configuration.json`
+   - `eqsl_settings.example.json` -> `eqsl_settings.json`
+   - `qrz.com.example.txt` -> `qrz.com.txt` (optional QRZ credentials fallback)
+   - `gmail_app_password.example.txt` -> `gmail_app_password.txt`
+4. Run `python upload_adif.py` (or `run_upload_adif.bat`).
+
+## Local Files (Not Committed)
+
+- `configuration.json`
+- `eqsl_settings.json`
+- `eqsl_sent.json`
+- `eqsl_contacts_cache.json`
+- `qrz.com.txt`
+- `gmail_app_password.txt`
+- `eqsl_out/`, `eqsl_assets_cache/`
+
+## Documentation
+
+- `docs/SETUP.md` - installation and configuration
+- `docs/EQSL_EMAIL.md` - eQSL email settings and templates
+- `docs/TESTING.md` - automated and live tests
+- `docs/GALLERY_LICENSES.md` - gallery usage and attribution rules
+- `gallery/ATTRIBUTIONS.md` - per-image attribution metadata
+
+## Tests
+
+- Unit tests: `python -m unittest discover -s tests -v`
+- Live test (real QRZ + Gmail send to yourself): set `RUN_LIVE_EQSL_TEST=1`
+- ADIF parsing is tested with synthetic fixtures and compatibility checks for BBLogger-exported generic ADIF files (local fixture path via `BBLOGGER_ADIF_FIXTURE`)
+
+## Privacy & Safety
+
+- Do not commit credentials, local ADIF exports, or sent-email history.
+- Only commit gallery images with clear free licenses and attribution metadata.
