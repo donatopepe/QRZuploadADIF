@@ -422,6 +422,7 @@ def lookup_email_via_qrz_html(
     settings: Dict[str, Any],
     logger: logging.Logger,
     contacts_cache: Dict[str, Any],
+    persist_contacts_cache_fn: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> str:
     cache = contacts_cache.setdefault("emails_by_callsign", {})
     key = callsign.upper()
@@ -453,6 +454,8 @@ def lookup_email_via_qrz_html(
         "checked_at_utc": datetime.now(timezone.utc).isoformat(),
         "source": "qrz_html",
     }
+    if persist_contacts_cache_fn is not None:
+        persist_contacts_cache_fn(contacts_cache)
     return email
 
 
@@ -1073,7 +1076,14 @@ def run_eqsl_for_adif(session: requests.Session, cfg: Dict[str, Any], logger: lo
         call = (qso.get("CALL") or "").strip()
         if not call:
             return "", ""
-        email = lookup_email_via_qrz_html(session, call, settings, logger, contacts_cache)
+        email = lookup_email_via_qrz_html(
+            session,
+            call,
+            settings,
+            logger,
+            contacts_cache,
+            persist_contacts_cache_fn=lambda payload: save_json(contacts_cache_path, payload),
+        )
         return email, ("qrz_html" if email else "")
 
     def render_postcard_fn(qso: Dict[str, str]) -> Path:

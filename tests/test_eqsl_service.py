@@ -134,6 +134,33 @@ class EqslServiceTests(unittest.TestCase):
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(contacts_cache["emails_by_callsign"]["VR2VGM"]["source"], "qrz_html")
 
+    def test_lookup_email_via_qrz_html_persists_contacts_cache_on_update(self):
+        html = "<html><a href='mailto:persisted@test.net'>x</a></html>"
+        session = FakeSession({"https://www.qrz.com/db/VR2VGM": html})
+        contacts_cache = {"schema_version": 1, "emails_by_callsign": {}}
+        settings = {"qrz_lookup_enabled": True, "qrz_lookup_timeout_sec": 5}
+        persisted_snapshots = []
+
+        def persist_fn(payload):
+            persisted_snapshots.append(json.loads(json.dumps(payload)))
+
+        email = eqsl_service.lookup_email_via_qrz_html(
+            session,
+            "VR2VGM",
+            settings,
+            _logger(),
+            contacts_cache,
+            persist_contacts_cache_fn=persist_fn,
+        )
+
+        self.assertEqual(email, "persisted@test.net")
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(len(persisted_snapshots), 1)
+        self.assertEqual(
+            persisted_snapshots[0]["emails_by_callsign"]["VR2VGM"]["email"],
+            "persisted@test.net",
+        )
+
     def test_lookup_email_via_qrz_html_retries_after_proxy_error(self):
         class ProxyThenOkSession:
             def __init__(self):
