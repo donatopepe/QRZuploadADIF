@@ -5,6 +5,7 @@ import random
 import re
 import smtplib
 import subprocess
+import shutil
 import time
 import uuid
 import hashlib
@@ -589,6 +590,10 @@ def _render_postcard_jpg_system_drawing(
     base_dir: Path,
     logger: logging.Logger,
 ) -> Path:
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        raise RuntimeError("System.Drawing renderer requires PowerShell (powershell or pwsh).")
+
     output_dir = base_dir / str(settings.get("postcard_output_dir", "eqsl_out"))
     _ensure_parent(output_dir / "dummy")
     source_image_path = _resolve_postcard_source_image_path(base_dir, settings, logger)
@@ -661,7 +666,7 @@ def _render_postcard_jpg_system_drawing(
     )
 
     result = subprocess.run(
-        ["powershell", "-Command", ps_script],
+        [powershell, "-Command", ps_script],
         capture_output=True,
         text=True,
         check=False,
