@@ -1,6 +1,6 @@
 import logging
+import os
 import tempfile
-import shutil
 import unittest
 from pathlib import Path
 
@@ -81,8 +81,8 @@ class EqslRendererTests(unittest.TestCase):
                 self.assertEqual(img.size, (2400, 1600))
 
     def test_render_postcard_with_system_drawing_backend(self):
-        if not (shutil.which("powershell") or shutil.which("pwsh")):
-            self.skipTest("PowerShell not available; System.Drawing is Windows-specific")
+        if os.name != "nt":
+            self.skipTest("System.Drawing renderer is Windows-specific")
         try:
             from PIL import Image  # noqa: F401
         except Exception as exc:  # noqa: BLE001
@@ -101,8 +101,8 @@ class EqslRendererTests(unittest.TestCase):
             self.assertGreater(out.stat().st_size, 10_000)
 
     def test_render_dispatch_uses_system_drawing_when_pillow_missing(self):
-        if not (shutil.which("powershell") or shutil.which("pwsh")):
-            self.skipTest("PowerShell not available; System.Drawing is Windows-specific")
+        if os.name != "nt":
+            self.skipTest("System.Drawing renderer is Windows-specific")
         qso = _sample_qso()
 
         with tempfile.TemporaryDirectory() as td:
