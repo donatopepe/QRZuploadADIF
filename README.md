@@ -21,6 +21,17 @@ Privacy-aware Python automation for:
 - basic anti-block/rate-limit controls (delay, jitter, batch pause, hourly cap)
 - proxy-environment fallback (`trust_env=False`) for broken local proxy settings
 
+## Release
+
+Download the credential-free package from [v1.0.0](https://github.com/donatopepe/QRZuploadADIF/releases/tag/v1.0.0) and verify it against the published `SHA256SUMS.txt`.
+
+```bash
+sha256sum -c SHA256SUMS.txt
+python -m zipfile -e QRZuploadADIF-v1.0.0.zip .
+```
+
+Release archives contain example configuration only. Never commit QRZ, Gmail, SMTP, or other credentials.
+
 ## Quick Start (Windows)
 
 1. Install Python 3.11+.
