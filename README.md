@@ -1,6 +1,10 @@
 ﻿# QRZ ADIF Upload + Email eQSL
 
-Python utility for:
+[![Tests](https://github.com/donatopepe/QRZuploadADIF/actions/workflows/tests.yml/badge.svg)](https://github.com/donatopepe/QRZuploadADIF/actions/workflows/tests.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+Privacy-aware Python automation for:
 
 - uploading ADIF files to QRZ Logbook
 - sending personalized email eQSL postcards (JPG attachment)
@@ -20,7 +24,7 @@ Python utility for:
 ## Quick Start (Windows)
 
 1. Install Python 3.11+.
-2. Install dependencies: `python -m pip install requests Pillow`
+2. Install dependencies: `python -m pip install -r requirements.txt`
 3. Copy templates and fill local secrets:
    - `configuration.example.json` -> `configuration.json`
    - `eqsl_settings.example.json` -> `eqsl_settings.json`
@@ -49,6 +53,8 @@ Python utility for:
 ## Tests
 
 - Unit tests: `python -m unittest discover -s tests -v`
+- CI: Python 3.11/3.13 on Linux and Windows
+- The Pillow renderer is portable; System.Drawing fallback is tested only where PowerShell is available
 - Live test (real QRZ + Gmail send to yourself): set `RUN_LIVE_EQSL_TEST=1`
 - ADIF parsing is tested with synthetic fixtures and compatibility checks for BBLogger-exported generic ADIF files (local fixture path via `BBLOGGER_ADIF_FIXTURE`)
 
